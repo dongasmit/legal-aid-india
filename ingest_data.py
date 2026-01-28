@@ -1,8 +1,9 @@
 import os
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+# Updated import to fix the warning you saw
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
 
 # Configuration
 DATA_FOLDER = "source_docs"
@@ -11,16 +12,16 @@ DB_PATH = "vector_db"
 def ingest_pdfs():
     # 1. Check if folder exists
     if not os.path.exists(DATA_FOLDER):
-        print(f"❌ Error: Folder '{DATA_FOLDER}' not found. Please create it and add your PDFs.")
+        print(f"❌ Error: Folder '{DATA_FOLDER}' not found.")
         return
 
     # 2. Find all PDFs
     pdf_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith('.pdf')]
     if not pdf_files:
-        print(f"❌ No PDFs found in '{DATA_FOLDER}'. Please add the BNS PDF.")
+        print(f"❌ No PDFs found in '{DATA_FOLDER}'.")
         return
 
-    print(f"📚 Found {len(pdf_files)} PDFs: {pdf_files}")
+    print(f"📚 Found {len(pdf_files)} PDFs...")
 
     all_chunks = []
 
@@ -29,37 +30,48 @@ def ingest_pdfs():
         pdf_path = os.path.join(DATA_FOLDER, pdf_file)
         print(f"Processing {pdf_file}...")
         
-        loader = PyPDFLoader(pdf_path)
-        documents = loader.load()
-        
-        # 4. Split Text into smart chunks
-        # We use a large chunk size (1000 chars) so the AI gets full context of a law
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-            separators=["\nSection", "\nArticle", "\n", " "]
-        )
-        
-        chunks = text_splitter.split_documents(documents)
-        all_chunks.extend(chunks)
-        print(f"   -> Split into {len(chunks)} chunks.")
+        try:
+            loader = PyPDFLoader(pdf_path)
+            documents = loader.load()
+            
+            # Split Text
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000,
+                chunk_overlap=200,
+                separators=["\nSection", "\nArticle", "\n", " "]
+            )
+            
+            chunks = text_splitter.split_documents(documents)
+            all_chunks.extend(chunks)
+            print(f"   -> Split into {len(chunks)} chunks.")
+        except Exception as e:
+            print(f"   ⚠️ Error reading {pdf_file}: {e}")
 
-    print(f"🧠 Embeddings {len(all_chunks)} total chunks (This will take a while)...")
+    print(f"🧠 Embeddings {len(all_chunks)} total chunks (Processing in batches)...")
     
-    # 5. Create Vector DB
+    # 4. Create/Reset Vector DB
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     
-    # Delete old DB if it exists to start fresh
     if os.path.exists(DB_PATH):
         import shutil
         shutil.rmtree(DB_PATH)
         print("   -> Cleared old database.")
 
-    vector_db = Chroma.from_documents(
-        documents=all_chunks,
-        embedding=embeddings,
-        persist_directory=DB_PATH
+    # Initialize DB
+    vector_db = Chroma(
+        persist_directory=DB_PATH,
+        embedding_function=embeddings
     )
+
+    # 5. Batch Insert (The Fix!)
+    # We insert 4000 chunks at a time to stay under the 5461 limit
+    BATCH_SIZE = 4000
+    total_batches = (len(all_chunks) // BATCH_SIZE) + 1
+
+    for i in range(0, len(all_chunks), BATCH_SIZE):
+        batch = all_chunks[i : i + BATCH_SIZE]
+        print(f"   -> Inserting batch {i//BATCH_SIZE + 1}/{total_batches} ({len(batch)} chunks)...")
+        vector_db.add_documents(documents=batch)
 
     print(f"✅ Success! Knowledge Base updated with {len(all_chunks)} chunks.")
 
