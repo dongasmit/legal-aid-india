@@ -1,11 +1,14 @@
 import os
+import io
 from dotenv import load_dotenv
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableParallel
+from docx import Document
+from fpdf import FPDF
 
 # 1. Load Keys
 load_dotenv()
@@ -15,66 +18,76 @@ DB_PATH = "vector_db"
 if not GROQ_API_KEY:
     raise ValueError("❌ API Key missing! Check .env file.")
 
-def get_rag_chain():
-    # --- A. Setup ---
-    print("🧠 Loading Vector Database...")
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vector_db = Chroma(persist_directory=DB_PATH, embedding_function=embeddings)
-    retriever = vector_db.as_retriever(search_kwargs={"k": 5})
+# --- SHARED RESOURCES ---
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+vector_db = Chroma(persist_directory=DB_PATH, embedding_function=embeddings)
+retriever = vector_db.as_retriever(search_kwargs={"k": 5})
 
-    llm = ChatGroq(
-        temperature=0, 
-        model_name="llama-3.3-70b-versatile", 
-        api_key=GROQ_API_KEY
-    )
+llm = ChatGroq(
+    temperature=0.1, 
+    model_name="llama-3.3-70b-versatile", 
+    api_key=GROQ_API_KEY
+)
 
-    # --- B. The "Translator" (Fixes Slang Permanently) ---
-    # This step converts "Hit and Run" -> "Section 106 BNS negligence"
+# --- HELPER: FILE CONVERTERS ---
+def generate_docx(text):
+    doc = Document()
+    doc.add_heading('Legal Draft', 0)
+    doc.add_paragraph(text)
+    
+    # Save to memory buffer
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+def generate_pdf(text):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    
+    # FPDF doesn't handle some unicode well, so we encode/decode just in case
+    # or replace common problem characters
+    clean_text = text.encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 10, clean_text)
+    
+    # Output string to buffer
+    buffer = io.BytesIO()
+    pdf_output = pdf.output(dest='S').encode('latin-1')
+    buffer.write(pdf_output)
+    buffer.seek(0)
+    return buffer
+
+# --- 1. THE RESEARCHER ---
+def get_research_response(query):
     query_transform_prompt = ChatPromptTemplate.from_template(
         """
-        You are a legal search optimizer. Convert the user's question into precise Indian Legal keywords.
-        
-        Rules:
-        1. Identify the core crime (e.g., "Hit and run" -> "Death by negligence", "Failure to report accident").
-        2. Map to relevant Acts (e.g., "Motor Vehicles Act", "BNS", "IT Act").
-        3. Output ONLY the search keywords.
-        
-        Example 1:
-        User: "Hit and run punishment"
-        Keywords: "Section 106(2) Bharatiya Nyaya Sanhita causing death by negligence Section 134 Motor Vehicles Act"
-        
-        Example 2:
-        User: "Land grabbing by relative"
-        Keywords: "Criminal Trespass Section 329 BNS Transfer of Property Act illegal possession"
-
-        User Question: {question}
-        Keywords:
+        You are a Legal Research Associate. Transform the Partner's raw query into precise legal search terms.
+        Partner's Query: {question}
+        Search Keywords:
         """
     )
-    
-    # Create the transformation chain
     query_transform_chain = query_transform_prompt | llm | StrOutputParser()
 
-    # --- C. The "Answerer" (The Lawyer) ---
     answer_prompt = ChatPromptTemplate.from_template(
         """
-        You are an expert Indian Legal Assistant.
-        Answer the question based ONLY on the following context:
+        You are a Junior Legal Associate at a top-tier Indian Law Firm. 
+        Your task is to provide a **Case Strategy Note** based on the provided legal context.
+
+        CONTEXT:
         {context}
 
-        Question: {question}
-        
-        Instructions:
-        - Cite the specific Act and Section number if available.
-        - Explain the punishment clearly.
-        - If the exact section isn't found, explain the general legal principle found in the text.
+        QUERY:
+        {question}
+
+        ---
+        **DRAFTING GUIDELINES:**
+        1. **Structure:** Legal Framework, Procedural Strategy, Evidentiary Standards, Recommended Filings.
+        2. **Ending:** Explicitly ask: "Would you like me to draft any of these documents now?"
+        ---
         """
     )
 
-    # --- D. The Full Pipeline ---
-    # 1. We translate the query first
-    # 2. We use the translated query to fetch docs (context)
-    # 3. We pass the docs + original question to the LLM to answer
     rag_chain = (
         RunnableParallel({
             "context": query_transform_chain | retriever, 
@@ -82,14 +95,55 @@ def get_rag_chain():
         })
         .assign(answer= answer_prompt | llm | StrOutputParser())
     )
+    
+    return rag_chain.invoke(query)
 
-    return rag_chain
+# --- 2. THE DRAFTER ---
+def draft_from_context(user_instruction, previous_context):
+    draft_prompt = ChatPromptTemplate.from_template(
+        """
+        You are a Senior Indian Advocate. 
+        Draft a legal document based on the user's instruction and the previous case context.
 
-# --- DRAFTING MODULE (Unchanged) ---
-def draft_legal_document(doc_type, details):
-    llm = ChatGroq(temperature=0.3, model_name="llama-3.3-70b-versatile", api_key=GROQ_API_KEY)
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an Indian Senior Advocate. Draft a formal document."),
-        ("human", "Draft: {doc_type}\nDetails:\n{details}")
-    ])
-    return (prompt | llm).invoke({"doc_type": doc_type, "details": details}).content
+        PREVIOUS CONTEXT:
+        {history}
+
+        USER INSTRUCTION:
+        {instruction}
+
+        OUTPUT FORMAT:
+        - Full legal draft with placeholders [Name], [Date].
+        - Use standard Indian legal language.
+        """
+    )
+    chain = draft_prompt | llm | StrOutputParser()
+    return chain.invoke({"history": previous_context, "instruction": user_instruction})
+
+# --- 3. THE ROUTER ---
+def ask_legal_ai(user_input, chat_history):
+    draft_keywords = ["draft", "write", "generate", "create", "make"]
+    affirmative_keywords = ["yes", "please", "sure", "ok", "go ahead"]
+    
+    is_draft_request = any(word in user_input.lower() for word in draft_keywords)
+    is_confirmation = any(word in user_input.lower() for word in affirmative_keywords)
+    
+    if (is_draft_request or is_confirmation) and len(chat_history) > 0:
+        last_ai_response = chat_history[-1]["content"]
+        draft_text = draft_from_context(user_input, last_ai_response)
+        
+        # Generate files immediately
+        return {
+            "type": "draft",
+            "answer": draft_text,
+            "docx": generate_docx(draft_text),
+            "pdf": generate_pdf(draft_text),
+            "context": []
+        }
+    
+    else:
+        response = get_research_response(user_input)
+        return {
+            "type": "research",
+            "answer": response["answer"],
+            "context": response["context"]
+        }
