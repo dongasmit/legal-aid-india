@@ -147,3 +147,24 @@ def ask_legal_ai(user_input, chat_history):
             "answer": response["answer"],
             "context": response["context"]
         }
+
+# --- 4. THE CONVERTER (IPC <-> BNS) ---
+def convert_law_code(query):
+    converter_prompt = ChatPromptTemplate.from_template(
+        """
+        You are an expert Legal Comparator specializing in the transition from Indian Penal Code (IPC) to Bharatiya Nyaya Sanhita (BNS).
+        
+        Task: Map the user's query (Old IPC Section or Concept) to the New BNS Section.
+        
+        User Query: {query}
+        
+        Output Format:
+        **1. Old Law:** [Section X IPC]
+        **2. New Law:** [Section Y BNS]
+        **3. Key Changes:** [Briefly explain if the punishment increased, definition expanded, or if it remains identical.]
+        
+        If the section does not have a direct equivalent, explain why.
+        """
+    )
+    chain = converter_prompt | llm | StrOutputParser()
+    return chain.invoke({"query": query})
