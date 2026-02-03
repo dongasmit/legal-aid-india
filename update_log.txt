@@ -1,0 +1,62 @@
+[2026-01-31 15:35:50] 🔍 Scanning for new judgments...
+[2026-01-31 15:35:50] ⬇️ Downloaded new file: Supreme_Court_Judgment_2026_Simulated.pdf
+[2026-01-31 15:35:50] 🧠 Running ingestion to update the Brain...
+[2026-01-31 15:35:50] ❌ Ingestion Failed: Traceback (most recent call last):
+  File "C:\Users\smitt\legal-aid-india\ingest_data.py", line 2, in <module>
+    from langchain_community.document_loaders import PyPDFLoader
+ModuleNotFoundError: No module named 'langchain_community'
+
+[2026-01-31 15:35:50] ☁️ Pushing updates to GitHub/Cloud...
+[2026-01-31 15:36:08] 🚀 Successfully deployed to Cloud!
+[2026-01-31 15:43:01] 🔍 Scanning for new judgments...
+[2026-01-31 15:43:01] ✅ No new judgments found.
+[2026-01-31 15:43:01] 💤 No updates needed today.
+[2026-01-31 17:38:53] 🌍 Scouring the internet for new legal data...
+[2026-01-31 17:38:53] 🔎 Searching Google for: 'landmark supreme court judgment india criminal law filetype:pdf'
+[2026-01-31 17:38:54] 🔎 Searching Google for: 'recent supreme court judgment india 2024 filetype:pdf'
+[2026-01-31 17:38:56] 🔎 Searching Google for: 'famous constitutional cases india judgment pdf'
+[2026-01-31 17:38:57] 💤 No new valid PDFs found this time.
+[2026-01-31 17:41:53] 🌍 Scouring the internet for new legal data...
+[2026-01-31 17:41:53] 🔎 Searching Google for: 'landmark supreme court judgment india criminal law filetype:pdf'
+[2026-01-31 17:41:54] 🔎 Searching Google for: 'recent supreme court judgment india 2024 filetype:pdf'
+[2026-01-31 17:41:55] 🔎 Searching Google for: 'famous constitutional cases india judgment pdf'
+[2026-01-31 17:41:56] 💤 No new valid PDFs found this time.
+[2026-01-31 17:45:00] 🦆 Scouring the internet (via DuckDuckGo)...
+[2026-01-31 17:45:00] 🔎 Searching for: 'landmark supreme court judgment india criminal law filetype:pdf'
+[2026-01-31 17:45:00] 🔎 Searching for: 'recent supreme court judgment india 2024 filetype:pdf'
+[2026-01-31 17:45:01] 🔎 Searching for: 'famous constitutional cases india judgment pdf'
+[2026-01-31 17:45:02] 💤 No new valid PDFs found this time.
+[2026-01-31 17:47:47] 🌍 Scouring Google (Slow Mode)...
+[2026-01-31 17:47:47] 🔎 Searching: 'Law Commission of India Reports pdf'
+[2026-01-31 17:47:48] 🔎 Searching: 'Landmark Supreme Court Judgments India full text pdf'
+[2026-01-31 17:47:49] 🔎 Searching: 'Indian Penal Code commentary pdf'
+[2026-01-31 17:47:50] ⚠️ Search yielded 0 files. Switching to Direct Targets...
+[2026-01-31 17:47:50] 🎯 Running Direct Target Scan...
+[2026-01-31 17:47:51]    ⬇️ Direct Download: 2023050195.pdf
+[2026-01-31 17:47:53] 🧠 Running ingestion...
+[2026-01-31 17:48:02] ❌ Ingestion Failed: Traceback (most recent call last):
+  File "C:\Users\smitt\legal-aid-india\ingest_data.py", line 79, in <module>
+    ingest_pdfs()
+  File "C:\Users\smitt\legal-aid-india\ingest_data.py", line 24, in ingest_pdfs
+    print(f"\U0001f4da Found {len(pdf_files)} PDFs...")
+  File "C:\Users\smitt\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f4da' in position 0: character maps to <undefined>
+
+[2026-01-31 17:50:20] 🌍 Scouring Google (Slow Mode)...
+[2026-01-31 17:50:20] 🔎 Searching: 'Law Commission of India Reports pdf'
+[2026-01-31 17:50:21] 🔎 Searching: 'Landmark Supreme Court Judgments India full text pdf'
+[2026-01-31 17:50:22] 🔎 Searching: 'Indian Penal Code commentary pdf'
+[2026-01-31 17:50:24] ⚠️ Search yielded 0 files. Switching to Direct Targets...
+[2026-01-31 17:50:24] 🎯 Running Direct Target Scan...
+[2026-01-31 17:50:24]    ⏩ file exists: 2023050195.pdf
+[2026-01-31 17:50:26] 💤 No new data found anywhere.
+[2026-02-01 15:30:56] 🌍 Scouring Google (Slow Mode)...
+[2026-02-01 15:30:56] 🔎 Searching: 'Law Commission of India Reports pdf'
+[2026-02-01 15:30:58] 🔎 Searching: 'Landmark Supreme Court Judgments India full text pdf'
+[2026-02-01 15:30:59] 🔎 Searching: 'Indian Penal Code commentary pdf'
+[2026-02-01 15:31:02] ⚠️ Search yielded 0 files. Switching to Direct Targets...
+[2026-02-01 15:31:02] 🎯 Running Direct Target Scan...
+[2026-02-01 15:31:03]    ⏩ file exists: 2023050195.pdf
+[2026-02-01 15:31:05] 💤 No new data found anywhere.

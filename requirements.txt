@@ -13,3 +13,9 @@ langchain-chroma
 langchain-huggingface
 python-docx
 fpdf
+pymupdf
+googlesearch-python
+requests
+duckduckgo-search
+selenium
+webdriver-manager

@@ -4,7 +4,14 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # Updated import to fix the warning you saw
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
+import sys
+import io
 
+# ⚠️ CRITICAL FIX: Force UTF-8 encoding for Windows consoles/logs
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+# ... (rest of your imports like os, langchain, etc.) ...
 # Configuration
 DATA_FOLDER = "source_docs"
 DB_PATH = "vector_db"

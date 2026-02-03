@@ -1,0 +1,7 @@
+[2026-02-02 15:32:42] 🚜 Starting Daily Harvest...
+[2026-02-02 15:32:54] 🕵️  Browsing Google for: site:sci.gov.in "judgment" filetype:pdf
+[2026-02-02 15:33:04] 🕵️  Browsing Google for: site:highcourtchd.gov.in "judgment" filetype:pdf
+[2026-02-02 15:33:09] 🕵️  Browsing Google for: site:bombayhighcourt.nic.in "judgment" filetype:pdf
+[2026-02-02 15:33:14] 🕵️  Browsing Google for: site:livelaw.in "read judgment" filetype:pdf
+[2026-02-02 15:33:19] 🕵️  Browsing Google for: site:nic.in "criminal appeal" judgment filetype:pdf
+[2026-02-02 15:33:26] 🏁 Harvest Complete. Collected 0 new documents.
