@@ -19,3 +19,8 @@ requests
 duckduckgo-search
 selenium
 webdriver-manager
+feedparser
+beautifulsoup4
+pinecone-client
+langchain-pinecone
+langchain-huggingface
