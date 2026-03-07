@@ -204,14 +204,15 @@ def main_app():
                                      st.info(f"**Document:** {source_name}\n\n**Page:** {page_num + 1}")
                                      st.caption(f"**Excerpt:** \"{doc.page_content[:300]}...\"")
                                  
-                                 # Right: The Actual Image
+                                 # Right: The Actual Image OR Text Fallback
                                  with col2:
-                                     # Call the image generator from app_logic
                                      img = get_source_image(source_path, page_num)
                                      if img:
                                          st.image(img, caption=f"Original Scan: Page {page_num + 1}", use_container_width=True)
                                      else:
-                                         st.warning("⚠️ Original scan unavailable (File not found locally).")
+                                         # Graceful Cloud Fallback
+                                         st.markdown("##### 📄 Official Case Excerpt")
+                                         st.success(doc.page_content)
 
                 except Exception as e:
                     message_placeholder.error(f"Error: {e}")
