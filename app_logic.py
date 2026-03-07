@@ -2,8 +2,8 @@ import os
 import io
 import sys
 from dotenv import load_dotenv
-from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_pinecone import PineconeVectorStore
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
@@ -19,16 +19,20 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-DB_PATH = "vector_db"
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 
-if not GROQ_API_KEY:
-    raise ValueError("❌ API Key missing!")
+if not GROQ_API_KEY or not PINECONE_API_KEY:
+    raise ValueError("❌ API Keys missing! Check your .env file.")
 
-# 2. RESOURCES
+# 2. CLOUD RESOURCES (The Pinecone Upgrade)
+INDEX_NAME = "jurisone-index"
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-vector_db = Chroma(persist_directory=DB_PATH, embedding_function=embeddings)
+
+# Connect directly to the Cloud Brain
+vector_db = PineconeVectorStore(index_name=INDEX_NAME, embedding=embeddings)
 retriever = vector_db.as_retriever(search_kwargs={"k": 5})
 
+# The Lawyer Brain
 llm = ChatGroq(temperature=0.1, model_name="llama-3.3-70b-versatile", api_key=GROQ_API_KEY)
 
 # --- HELPER FUNCTIONS ---
@@ -73,13 +77,6 @@ def get_source_image(file_path, page_number):
 
 # 1. THE STRATEGIST (Research with Memory)
 def get_research_response(query, history_text):
-    """
-    Research that remembers context. 
-    It combines history + new query to find the right documents.
-    """
-    
-    # STEP A: CONTEXTUAL SEARCH QUERY
-    # This fixes the "Deaf Bot" issue. We tell it: "Look at the history!"
     query_transform_prompt = ChatPromptTemplate.from_template(
         """
         Given the conversation history and the new question, create a precise search query.
@@ -87,19 +84,12 @@ def get_research_response(query, history_text):
         HISTORY: {history}
         NEW QUESTION: {question}
         
-        If the question is "What documents do I need?", and history is about "Attempted Murder", 
-        the search query must be: "Documents required for Attempted Murder case India".
-        
         OUTPUT ONLY THE SEARCH QUERY.
         """
     )
-    
-    # Create the search query
     search_query_chain = query_transform_prompt | llm | StrOutputParser()
     generated_query = search_query_chain.invoke({"history": history_text, "question": query})
-    print(f"DEBUG: Generated Search Query: {generated_query}") # See this in terminal
 
-    # STEP B: SENIOR PARTNER ANSWER
     answer_prompt = ChatPromptTemplate.from_template(
         """
         You are a Senior Legal Partner. Provide strategic advice.
@@ -123,7 +113,7 @@ def get_research_response(query, history_text):
     
     rag_chain = (
         RunnableParallel({
-            "context": lambda x: retriever.invoke(generated_query), # Use the SMART query
+            "context": lambda x: retriever.invoke(generated_query), 
             "question": RunnablePassthrough()
         })
         .assign(answer= answer_prompt | llm | StrOutputParser())
@@ -142,7 +132,7 @@ def analyze_drafting_needs(user_input, history_text):
         Full Conversation History: {history}
         
         **TASK:**
-        1. Extract the Case Type from history (e.g., Hit and Run, Murder, Rent).
+        1. Extract the Case Type from history.
         2. Identify the document the user wants to draft now.
         3. Check if we have names/dates/details.
         
@@ -150,7 +140,7 @@ def analyze_drafting_needs(user_input, history_text):
         {{
             "status": "READY" or "MISSING_INFO",
             "missing_details": ["List of questions"],
-            "document_type": "Specific Document Name (e.g. Bail Application for Attempted Murder)"
+            "document_type": "Specific Document Name"
         }}
         """
     )
@@ -183,15 +173,11 @@ def convert_law_code(query):
 
 # --- MAIN ROUTER ---
 def ask_legal_ai(user_input, chat_history_list):
-    # 1. Format History
     history_text = "\n".join([f"{msg['role'].upper()}: {msg['content']}" for msg in chat_history_list])
     
-    # 2. TRIGGER LOGIC (Expanded Keywords)
-    # This fixes the "draft the" issue
     draft_keywords = ["draft", "write", "prepare", "create", "generate"]
     is_draft_request = any(k in user_input.lower() for k in draft_keywords)
     
-    # 3. ROUTING
     if is_draft_request:
         analysis = analyze_drafting_needs(user_input, history_text)
         
@@ -213,7 +199,6 @@ def ask_legal_ai(user_input, chat_history_list):
             }
             
     else:
-        # Research Mode (Now passes HISTORY_TEXT)
         response = get_research_response(user_input, history_text)
         return {
             "type": "research",
