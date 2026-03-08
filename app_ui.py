@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import json
 from app_logic import ask_legal_ai, convert_law_code, get_source_image
+from auth import create_user, verify_user
 
 # --- CONFIGURATION & DATABASE SETUP ---
 DB_FILE = "jurisone_data.json"
@@ -50,32 +51,31 @@ def login_page():
     with col2:
         tab1, tab2 = st.tabs(["Login", "Create Account"])
         
-        db = load_db()
-        
         with tab1:
             username = st.text_input("Username", key="login_user")
             password = st.text_input("Password", type="password", key="login_pass")
             if st.button("Login", use_container_width=True):
-                if username in db and db[username]["password"] == password:
-                    st.session_state.user = username
-                    st.success("Access Granted.")
-                    st.rerun()
+                if username and password:
+                    success, message = verify_user(username, password)
+                    if success:
+                        st.session_state.user = username
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
                 else:
-                    st.error("Invalid credentials.")
+                    st.warning("Please fill all fields.")
         
         with tab2:
             new_user = st.text_input("New Username", key="reg_user")
             new_pass = st.text_input("New Password", type="password", key="reg_pass")
             if st.button("Register", use_container_width=True):
-                if new_user in db:
-                    st.error("User already exists.")
-                elif new_user and new_pass:
-                    db[new_user] = {
-                        "password": new_pass, 
-                        "chats": {"New Case #1": []} # Default first chat
-                    }
-                    save_db(db)
-                    st.success("Account created! Please Login.")
+                if new_user and new_pass:
+                    success, message = create_user(new_user, new_pass)
+                    if success:
+                        st.success(f"{message} Please Login.")
+                    else:
+                        st.error(message)
                 else:
                     st.warning("Please fill all fields.")
 
@@ -217,8 +217,11 @@ def main_app():
                 except Exception as e:
                     message_placeholder.error(f"Error: {e}")
 
-# --- APP ENTRY POINT ---
-if st.session_state.user:
-    main_app()
-else:
+# --- MAIN APP ROUTER ---
+# If no user is logged in, show the centered login page
+if st.session_state.user is None:
     login_page()
+
+# If they ARE logged in, show the actual JurisOne workspace
+else:
+    main_app()
