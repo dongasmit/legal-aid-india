@@ -3,7 +3,7 @@ langchain-groq
 langchain-pinecone
 langchain-huggingface
 sentence-transformers
-pinecone-client
+pinecone
 pymupdf
 python-docx
 fpdf
