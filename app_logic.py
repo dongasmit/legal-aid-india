@@ -1,6 +1,5 @@
 import os
 import io
-import sys
 from dotenv import load_dotenv
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_pinecone import PineconeVectorStore
@@ -13,9 +12,7 @@ from fpdf import FPDF
 import fitz  # PyMuPDF
 from PIL import Image
 
-# 1. SETUP
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
