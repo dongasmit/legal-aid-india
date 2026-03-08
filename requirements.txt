@@ -9,4 +9,5 @@ python-docx
 fpdf
 python-dotenv
 Pillow
-psycopg2-binary bcrypt
+psycopg2-binary
+bcrypt
