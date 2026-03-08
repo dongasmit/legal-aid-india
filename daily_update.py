@@ -9,8 +9,12 @@ from googlesearch import search
 from urllib.parse import urlparse, unquote
 from bs4 import BeautifulSoup
 
+from config import DATA_FOLDER, get_logger
+
+logger = get_logger(__name__)
+
 # --- CONFIGURATION ---
-DOWNLOAD_FOLDER = "source_docs"
+DOWNLOAD_FOLDER = DATA_FOLDER
 LOG_FILE = "update_log.txt"
 MAX_DOWNLOADS = 5  # Files per run
 
@@ -32,7 +36,7 @@ def log(message):
     # Force UTF-8 for emoji support
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(f"[{timestamp}] {message}\n")
-    print(f"[{timestamp}] {message}")
+    logger.info(message)
 
 def download_file(url, source_label="Search"):
     try:
