@@ -1,51 +1,25 @@
 import streamlit as st
-import os
-import json
 from app_logic import ask_legal_ai, convert_law_code, get_source_image
 from auth import create_user, verify_user
 
-# --- CONFIGURATION & DATABASE SETUP ---
-DB_FILE = "jurisone_data.json"
-
-def load_db():
-    """Load users and chats from local JSON file."""
-    if not os.path.exists(DB_FILE):
-        return {} # Return empty db if file doesn't exist
-    try:
-        with open(DB_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_db(data):
-    """Save everything to local JSON file."""
-    with open(DB_FILE, "w") as f:
-        json.dump(data, f, indent=4)
-
 # --- PAGE CONFIGURATION ---
-st.set_page_config(
-    page_title="JurisOne | Legal Intelligence",
-    page_icon="⚖️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="JurisOne | Legal AI", page_icon="⚖️", layout="wide")
 
-# --- CUSTOM CSS ---
-st.markdown("""
-    <style>
-    .main-header {font-size: 2.5rem; font-weight: 700; color: #f8fafc;} 
-    .sub-header {font-size: 1.1rem; color: #94a3b8; margin-bottom: 2rem;}
-    .stChatInput {border-radius: 12px;}
-    div[data-testid="stSidebar"] {background-color: #1e293b;}
-    </style>
-""", unsafe_allow_html=True)
-
-# --- AUTHENTICATION LOGIC ---
+# --- SESSION STATE INITIALIZATION ---
 if "user" not in st.session_state:
     st.session_state.user = None
 
+# Initialize the Multi-Thread Case System
+if "cases" not in st.session_state:
+    st.session_state.cases = {"New Case #1": []}
+if "active_case" not in st.session_state:
+    st.session_state.active_case = "New Case #1"
+
+# --- AUTHENTICATION LOGIC ---
 def login_page():
+    st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown("<h1 style='text-align: center;'>🔐 JurisOne Secure Login</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>Enterprise-Grade Legal Intelligence</p><br>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -79,149 +53,140 @@ def login_page():
                 else:
                     st.warning("Please fill all fields.")
 
-# --- MAIN APP LOGIC ---
-def main_app():
-    user = st.session_state.user
-    db = load_db()
-    
-    # Ensure user has data
-    if user not in db:
-        st.session_state.user = None
-        st.rerun()
-        
-    user_data = db[user]
-    chats = user_data["chats"]
-    
-    # --- SIDEBAR: WORKSPACE ---
+# --- MAIN APP ROUTER ---
+if st.session_state.user is None:
+    login_page()
+else:
+    # --- SIDEBAR (Logged In State) ---
     with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/924/924915.png", width=70)
+        st.image("https://cdn-icons-png.flaticon.com/512/6024/6024190.png", width=60)
         st.title("JurisOne Workspace")
-        st.caption(f"Logged in as: **{user}**")
+        st.write(f"Logged in as: **{st.session_state.user}**")
         
         if st.button("Logout", type="primary", use_container_width=True):
             st.session_state.user = None
             st.rerun()
-            
-        st.markdown("---")
-        st.markdown("### 🗂️ Case Files")
 
-        # 1. New Case Button
+        st.divider()
+        
+        # --- CASE FILES (MULTI-CHAT SYSTEM) ---
+        st.markdown("### 📁 Case Files")
         if st.button("➕ Open New Case", use_container_width=True):
-            new_id = f"Case File #{len(chats) + 1}"
-            chats[new_id] = [] # Create empty list
-            db[user]["chats"] = chats
-            save_db(db) 
-            st.session_state.current_chat_id = new_id
+            new_case_name = f"New Case #{len(st.session_state.cases) + 1}"
+            st.session_state.cases[new_case_name] = []
+            st.session_state.active_case = new_case_name
             st.rerun()
 
-        # 2. Case Selector
-        if "current_chat_id" not in st.session_state or st.session_state.current_chat_id not in chats:
-            st.session_state.current_chat_id = list(chats.keys())[0]
-            
+        # Switch between cases
         selected_case = st.radio(
             "Select Active Case:", 
-            list(chats.keys()), 
-            index=list(chats.keys()).index(st.session_state.current_chat_id)
+            list(st.session_state.cases.keys()), 
+            index=list(st.session_state.cases.keys()).index(st.session_state.active_case)
         )
         
-        if selected_case != st.session_state.current_chat_id:
-            st.session_state.current_chat_id = selected_case
+        if selected_case != st.session_state.active_case:
+            st.session_state.active_case = selected_case
             st.rerun()
-            
-        st.markdown("---")
-        st.subheader("🛠️ Tools")
-        ipc_input = st.text_input("IPC -> BNS Converter", placeholder="e.g. 302 IPC")
-        if st.button("Convert"):
-             res = convert_law_code(ipc_input)
-             st.info(res)
 
-    # --- MAIN CHAT AREA ---
-    st.markdown('<div class="main-header">JurisOne ⚖️</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="sub-header">AI Co-Counsel • Working on: <b>{st.session_state.current_chat_id}</b></div>', unsafe_allow_html=True)
+        st.divider()
+        
+        # --- TOOLS ---
+        st.markdown("### 🛠 Tools")
+        st.markdown("**IPC → BNS Converter**")
+        ipc_code = st.text_input("e.g., 302 IPC", key="ipc_input")
+        if st.button("Convert", use_container_width=True):
+            if ipc_code:
+                with st.spinner("Converting..."):
+                    conversion = convert_law_code(ipc_code)
+                    st.info(conversion)
 
-    # 1. Load History
-    current_chat_id = st.session_state.current_chat_id
-    history = chats[current_chat_id]
-
-    # 2. Display Chat
-    for message in history:
-        avatar = "🧑‍⚖️" if message["role"] == "user" else "🤖"
-        with st.chat_message(message["role"], avatar=avatar):
+    # --- MAIN CHAT INTERFACE ---
+    st.title(f"⚖️ {st.session_state.active_case}")
+    
+    # Load the messages for the currently active case
+    current_chat = st.session_state.cases[st.session_state.active_case]
+    
+    # Display historical chat messages
+    for idx, message in enumerate(current_chat):
+        with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            
+            # Re-render Verification Deck from history
+            if message.get("context"):
+                with st.expander("🔍 Verification Deck"):
+                    tabs = st.tabs([f"Source {i+1}" for i in range(len(message["context"]))])
+                    for i, doc in enumerate(message["context"]):
+                        with tabs[i]:
+                            source_path = doc.metadata.get('source', 'Unknown')
+                            page_num = doc.metadata.get('page', 0)
+                            
+                            col1, col2 = st.columns([1, 1])
+                            with col1:
+                                st.info(f"**Document:**\n{source_path}\n\n**Page:** {page_num + 1}")
+                            with col2:
+                                img = get_source_image(source_path, page_num)
+                                if img:
+                                    st.image(img, caption=f"Original Scan: Page {page_num + 1}", use_container_width=True)
+                                else:
+                                    st.markdown("##### 📄 Official Case Excerpt")
+                                    st.success(doc.page_content)
+            
+            # Re-render download buttons from history
+            if message.get("docx"):
+                st.download_button("📄 Download DOCX", data=message["docx"], file_name="jurisone_draft.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", key=f"dl_docx_{idx}")
+            if message.get("pdf"):
+                st.download_button("📑 Download PDF", data=message["pdf"], file_name="jurisone_draft.pdf", mime="application/pdf", key=f"dl_pdf_{idx}")
 
-    # 3. Handle Input
+    # --- CHAT INPUT & PROCESSING ---
     if prompt := st.chat_input("Draft a petition, research case law..."):
         
-        # A. Show User Msg
-        with st.chat_message("user", avatar="🧑‍⚖️"):
+        # 1. Show user message
+        st.session_state.cases[st.session_state.active_case].append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
             st.markdown(prompt)
-        
-        # B. Save User Msg
-        history.append({"role": "user", "content": prompt})
-        db[user]["chats"][current_chat_id] = history
-        save_db(db) 
-        
-        # C. Generate AI Response
-        with st.chat_message("assistant", avatar="🤖"):
-            message_placeholder = st.empty()
-            with st.spinner("⚖️ Consulting database..."):
-                try:
-                    response_data = ask_legal_ai(prompt, history)
-                    final_answer = response_data["answer"]
+            
+        # 2. Process and show assistant response
+        with st.chat_message("assistant"):
+            with st.spinner("Analyzing Indian Law..."):
+                response_data = ask_legal_ai(prompt, st.session_state.cases[st.session_state.active_case])
+                
+                # Show main answer
+                st.markdown(response_data["answer"])
+                
+                # Prepare message dictionary to save
+                message_to_save = {
+                    "role": "assistant", 
+                    "content": response_data["answer"],
+                    "context": response_data.get("context", []),
+                    "docx": response_data.get("docx", None),
+                    "pdf": response_data.get("pdf", None)
+                }
+                
+                # Render Verification Deck live
+                if message_to_save["context"]:
+                    with st.expander("🔍 Verification Deck", expanded=True):
+                        tabs = st.tabs([f"Source {i+1}" for i in range(len(message_to_save["context"]))])
+                        for i, doc in enumerate(message_to_save["context"]):
+                            with tabs[i]:
+                                source_path = doc.metadata.get('source', 'Unknown')
+                                page_num = doc.metadata.get('page', 0)
+                                
+                                col1, col2 = st.columns([1, 1])
+                                with col1:
+                                    st.info(f"**Document:**\n{source_path}\n\n**Page:** {page_num + 1}")
+                                with col2:
+                                    img = get_source_image(source_path, page_num)
+                                    if img:
+                                        st.image(img, caption=f"Original Scan: Page {page_num + 1}", use_container_width=True)
+                                    else:
+                                        st.markdown("##### 📄 Official Case Excerpt")
+                                        st.success(doc.page_content)
+                
+                # Render Download Buttons live
+                if message_to_save["docx"]:
+                    st.download_button("📄 Download DOCX", data=message_to_save["docx"], file_name="jurisone_draft.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", key="dl_docx_new")
+                if message_to_save["pdf"]:
+                    st.download_button("📑 Download PDF", data=message_to_save["pdf"], file_name="jurisone_draft.pdf", mime="application/pdf", key="dl_pdf_new")
                     
-                    message_placeholder.markdown(final_answer)
-                    
-                    # D. Save AI Msg
-                    history.append({"role": "assistant", "content": final_answer})
-                    db[user]["chats"][current_chat_id] = history
-                    save_db(db)
-                    
-                    # E. SHOW EXTRAS (RESTORED IMAGES!)
-                    if response_data.get("type") == "draft":
-                        st.success("Draft Generated.")
-                        st.download_button("📄 Download DOCX", response_data["docx"], "draft.docx")
-                        st.download_button("📑 Download PDF", response_data["pdf"], "draft.pdf")
-                    
-                    # --- FIXED VERIFICATION DECK ---
-                    elif response_data.get("type") == "research" and response_data.get("context"):
-                         st.markdown("---")
-                         st.subheader("🔍 Verification Deck")
-                         
-                         # Create tabs for clean UI
-                         tabs = st.tabs([f"Source {i+1}" for i in range(len(response_data["context"]))])
-                         
-                         for i, (tab, doc) in enumerate(zip(tabs, response_data["context"])):
-                             with tab:
-                                 # Get Metadata
-                                 source_path = doc.metadata.get("source", "")
-                                 page_num = doc.metadata.get("page", 0)
-                                 source_name = os.path.basename(source_path)
-                                 
-                                 col1, col2 = st.columns([1, 1.5])
-                                 
-                                 # Left: Text Snippet
-                                 with col1:
-                                     st.info(f"**Document:** {source_name}\n\n**Page:** {page_num + 1}")
-                                     st.caption(f"**Excerpt:** \"{doc.page_content[:300]}...\"")
-                                 
-                                 # Right: The Actual Image OR Text Fallback
-                                 with col2:
-                                     img = get_source_image(source_path, page_num)
-                                     if img:
-                                         st.image(img, caption=f"Original Scan: Page {page_num + 1}", use_container_width=True)
-                                     else:
-                                         # Graceful Cloud Fallback
-                                         st.markdown("##### 📄 Official Case Excerpt")
-                                         st.success(doc.page_content)
-
-                except Exception as e:
-                    message_placeholder.error(f"Error: {e}")
-
-# --- MAIN APP ROUTER ---
-# If no user is logged in, show the centered login page
-if st.session_state.user is None:
-    login_page()
-
-# If they ARE logged in, show the actual JurisOne workspace
-else:
-    main_app()
+                # Save to active case session state
+                st.session_state.cases[st.session_state.active_case].append(message_to_save)

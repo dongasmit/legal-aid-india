@@ -58,17 +58,27 @@ def generate_pdf(text):
 
 def get_source_image(file_path, page_number):
     try:
-        clean_path = file_path.replace("\\", "/")
-        filename = os.path.basename(clean_path)
-        local_path = os.path.join("source_docs", filename)
-        if not os.path.exists(local_path): return None
+        # Normalize the path so it works perfectly on both Windows (\) and Linux (/)
+        local_path = os.path.normpath(file_path)
+        
+        # If the file doesn't exist (like when running on Streamlit Cloud), trigger text fallback
+        if not os.path.exists(local_path): 
+            return None
+            
         doc = fitz.open(local_path)
-        if page_number >= len(doc): return None
-        page = doc.load_page(page_number)
+        
+        # Ensure page number is an integer to avoid indexing errors
+        page_idx = int(page_number)
+        if page_idx >= len(doc): 
+            return None
+            
+        page = doc.load_page(page_idx)
         pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         return img
-    except: return None
+    except Exception as e:
+        print(f"⚠️ Image generation skipped: {e}")
+        return None
 
 # --- INTELLIGENCE FUNCTIONS ---
 
