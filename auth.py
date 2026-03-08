@@ -4,6 +4,10 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 
+from config import get_logger
+
+logger = get_logger(__name__)
+
 # Load the environment variables
 load_dotenv()
 
@@ -18,8 +22,8 @@ def get_db_connection():
     try:
         conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
         return conn
-    except Exception as e:
-        print(f"❌ Database connection error: {e}")
+    except Exception as exc:
+        logger.error("Database connection error: %s", exc)
         return None
 
 def init_db():
@@ -37,19 +41,19 @@ def init_db():
                     );
                 """)
             conn.commit()
-            print("✅ Database tables initialized successfully in the cloud!")
-        except Exception as e:
-            print(f"❌ Failed to create tables: {e}")
+            logger.info("Database tables initialised successfully in the cloud!")
+        except Exception as exc:
+            logger.error("Failed to create tables: %s", exc)
         finally:
             conn.close()
     else:
-        print("❌ Could not connect to the database to create tables.")
+        logger.error("Could not connect to the database to create tables.")
 
 def create_user(username, plain_text_password):
     """Hashes the password and saves the new user to PostgreSQL."""
     salt = bcrypt.gensalt()
     hashed_pw = bcrypt.hashpw(plain_text_password.encode('utf-8'), salt).decode('utf-8')
-    
+
     conn = get_db_connection()
     if conn:
         try:
@@ -74,7 +78,7 @@ def verify_user(username, plain_text_password):
             with conn.cursor() as cur:
                 cur.execute("SELECT password_hash FROM users WHERE username = %s", (username,))
                 user = cur.fetchone()
-            
+
             if user:
                 saved_hash = user['password_hash'].encode('utf-8')
                 if bcrypt.checkpw(plain_text_password.encode('utf-8'), saved_hash):
@@ -83,9 +87,9 @@ def verify_user(username, plain_text_password):
                     return False, "Incorrect password."
         finally:
             conn.close()
-                
+
     return False, "Username not found."
 
 if __name__ == "__main__":
-    print("🚀 Attempting to connect to Neon Cloud Database...")
+    logger.info("Attempting to connect to Neon Cloud Database...")
     init_db()

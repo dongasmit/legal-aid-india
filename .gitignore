@@ -2,3 +2,10 @@ vector_db/
 venv/
 __pycache__/
 .env
+*.log
+harvest_log.txt
+update_log.txt
+chat_data.json
+harvested_urls.json
+*.pyc
+.DS_Store

@@ -1,5 +1,5 @@
 import streamlit as st
-from app_logic import ask_legal_ai, convert_law_code, get_source_image
+from app_logic import ask_legal_ai, convert_law_code, get_source_image, _init_error
 from auth import create_user, verify_user
 
 # --- PAGE CONFIGURATION ---
@@ -8,6 +8,11 @@ st.set_page_config(page_title="JurisOne | Legal AI", page_icon="⚖️", layout=
 # --- SESSION STATE INITIALIZATION ---
 if "user" not in st.session_state:
     st.session_state.user = None
+
+# Surface any AI initialisation errors early so users see a clear message.
+if _init_error:
+    st.error(_init_error)
+    st.stop()
 
 # Initialize the Multi-Thread Case System
 if "cases" not in st.session_state:
