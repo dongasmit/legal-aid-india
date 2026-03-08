@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # Load the environment variables
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("postgresql://neondb_owner:npg_CkwAG7QdtO6p@ep-round-dream-a1tmytom-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
 
 # Strict check to stop the script if the URL is missing
 if not DATABASE_URL:
