@@ -11,3 +11,7 @@ python-dotenv
 Pillow
 psycopg2-binary
 bcrypt
+feedparser
+beautifulsoup4
+requests
+langchain-text-splitters
