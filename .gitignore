@@ -1,4 +1,111 @@
-vector_db/
-venv/
-__pycache__/
+# =====================================================================
+# JurisOne — Comprehensive Root .gitignore
+# =====================================================================
+
+# --- Environment & API Keys (CRITICAL) ---
 .env
+.env.*
+*.env
+!.env.example
+
+# --- Python & Virtual Environments ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+/build/
+develop-eggs/
+/dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# --- Testing & Coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+htmlcov/
+
+# --- Node & Frontend Dependencies ---
+node_modules/
+*/node_modules/
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# --- Next.js Build Outputs & Caches ---
+.next/
+*/.next/
+/out/
+jurisone-frontend/out/
+.vercel
+*/.vercel
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Vector Databases, Local Indexes & Storage ---
+vector_db/
+qdrant_storage/
+qdrant_data/
+bm25_model/
+*.sqlite3
+*.db
+
+# --- Logs, Runtime State & User Sessions ---
+*.log
+*log.txt
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+harvest_log.txt
+update_log.txt
+chat_data.json
+jurisone_data.json
+
+# --- IDE & Editor Settings ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# --- OS Artifacts ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

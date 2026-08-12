@@ -1,0 +1,310 @@
+# JurisOne — Agentic RAG 2.0: Full Upgrade Plan
+
+## Overview
+
+JurisOne currently runs a **linear LangChain RAG pipeline** on top of Pinecone with basic semantic search (top-k=5, dense vectors only). The goal is to evolve this into a **self-healing, agentic system** that:
+
+1. **Knows when it doesn't know** — if a query can't be answered from the local Qdrant corpus, it doesn't hallucinate; it actively searches trusted external legal sources.
+2. **Retrieves better** — via hybrid search (dense + sparse BM25) with cross-encoder reranking.
+3. **Generates with verification** — a LangGraph cycle detects hallucinations and loops to fix them.
+4. **Returns structured output** — strict Pydantic JSON that the Next.js frontend always parses cleanly.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Pinecone → Qdrant Migration**: This plan **replaces Pinecone** with a local Qdrant instance. Your existing Pinecone index (`jurisone-index`) will no longer be queried. **All PDFs in `source_docs/` must be re-ingested** into Qdrant. The `PINECONE_API_KEY` in `.env` will no longer be needed. Confirm you are okay with this data migration before proceeding.
+
+> [!WARNING]
+> **Docker Requirement**: Qdrant runs inside Docker. On your Windows machine, Docker Desktop must be running. The plan uses `docker run` to spin up the Qdrant container. If you prefer a different approach (WSL2, native binary), let me know.
+
+> [!IMPORTANT]
+> **Web Search for Unknown Queries**: When the RAG corpus has no relevant answer, the agent will hit external legal APIs/sites. The prioritized trusted sources are:
+> - **Indian Kanoon API** (`indiankanoon.org`) — Indian case law (requires a free API key)
+> - **SCC Online** (scraped via HTTP if no API) — secondary fallback
+> - **Law Commission of India** official site — reports and acts
+> 
+> Do you have an Indian Kanoon API key? If not, the plan defaults to scraping their public search endpoint.
+
+> [!CAUTION]
+> **Contextual Retrieval cost**: The "Anthropic Contextual Retrieval" step calls Groq's Llama-3.3 **once per chunk** during ingestion. For 500 PDFs at ~20 chunks each = **~10,000 Groq API calls**. This is done only once at index-build time, but it will take significant time. Rate limits on Groq's free tier may require batching with delays.
+
+---
+
+## Open Questions
+
+1. **Web search scope**: When the RAG fails, should the agent search broadly across all trusted Indian legal sources, or only Indian Kanoon? A broader search is more powerful but slower.
+2. **Hallucination loop limit**: If the LangGraph hallucination checker keeps failing, how many retries before returning a "Cannot verify" message? Proposed default: **3 attempts**.
+3. **Sparse vector generation at query time**: `bm25s` is a corpus-level model — it needs to be fit on the full document set. Shall we persist the fitted BM25 model as a pickle file alongside Qdrant, or rebuild it on startup?
+4. **Frontend response types**: Should the `web_search` type responses look visually different in the Next.js UI (e.g., a "Web Source" badge instead of the Verification Deck)?
+
+---
+
+## Architecture: Before vs. After
+
+```
+BEFORE (Linear)                    AFTER (Agentic Cyclic)
+─────────────────────              ──────────────────────────────
+User Query                         User Query
+    │                                  │
+    ▼                                  ▼
+Dense Embed (MiniLM)            ┌─── LangGraph State ───────┐
+    │                           │   Node 1: Hybrid Retrieve  │
+    ▼                           │   (Qdrant dense + sparse)  │
+Pinecone Top-5                  │          │                  │
+    │                           │   Node 2: Rerank (FlashRank)│
+    ▼                           │          │                  │
+Llama-3.3 Generate              │   Node 3: Relevance Grade  │
+    │                           │          │                  │
+    ▼                           │   ┌──────▼──────┐           │
+Raw Markdown Response           │   │ RAG OK?     │           │
+                                │   │ YES → Node 5 │          │
+                                │   │ NO → Web    │           │
+                                │   │  Search Node │          │
+                                │   └──────┬───────┘          │
+                                │          ▼                  │
+                                │   Node 5: Generate          │
+                                │   (structured output)       │
+                                │          │                  │
+                                │   Node 6: Hallucination     │
+                                │   Check (loop or pass)      │
+                                └───────────────────────────┘
+                                           │
+                                           ▼
+                                  LegalResponse (JSON)
+```
+
+---
+
+## Proposed Changes
+
+### Phase 0 — Infrastructure & Dependencies
+
+#### [MODIFY] [.env](file:///c:/Users/smitt/legal-aid-india/.env)
+- Add: `QDRANT_URL=http://localhost:6333`
+- Add: `QDRANT_COLLECTION=jurisone_legal`
+- Add: `INDIANKANOON_API_KEY=` (empty, user to fill)
+- Remove: Pinecone key usage (kept in file but code won't use it)
+
+#### [MODIFY] [requirements.txt](file:///c:/Users/smitt/legal-aid-india/requirements.txt)
+Add new dependencies:
+```
+langgraph>=0.2.0
+qdrant-client>=1.10.0
+flashrank>=0.2.9
+bm25s>=0.1.10
+httpx
+tavily-python          # fallback web search (no API key needed for basic)
+```
+
+#### Docker Qdrant Setup (run once)
+```bash
+docker run -d --name qdrant-jurisone \
+  -p 6333:6333 -p 6334:6334 \
+  -v ${PWD}/qdrant_storage:/qdrant/storage:z \
+  qdrant/qdrant
+```
+
+---
+
+### Phase 1 — Qdrant Collection Setup
+
+#### [NEW] `qdrant_setup.py`
+One-time script to create the Qdrant collection with:
+- **Dense vector** config: size=384 (MiniLM), distance=Cosine
+- **Sparse vector** config: named `"bm25"`, using `qdrant_client.models.SparseVectorParams`
+- Named vectors approach so both live in the same collection
+
+---
+
+### Phase 2 — Contextual Re-Ingestion Pipeline
+
+#### [MODIFY] [local_ingest.py](file:///c:/Users/smitt/legal-aid-india/local_ingest.py)
+Full rewrite of the ingestion pipeline:
+
+1. **PDF Load** — PyMuPDF extracts full document text + per-chunk text
+2. **Contextual Enrichment** — For each chunk, call Groq (Llama-3.3) with the whole-document and chunk to generate a 2-3 sentence situating summary
+3. **Contextualized Chunk** — `contextualized_chunk = context_summary + "\n" + chunk_text`
+4. **Dual Embedding**:
+   - Dense: `all-MiniLM-L6-v2` → 384-dim vector
+   - Sparse: `bm25s` fitted on full corpus → sparse TF-IDF-like vector
+5. **Upsert to Qdrant** — both vectors + payload (source, page, original_text, context_summary)
+6. **BM25 Persistence** — save fitted `bm25s` model to `bm25_model.pkl`
+
+---
+
+### Phase 3 — Hybrid Retrieval + Reranking
+
+#### [NEW] `retrieval.py`
+Encapsulates the retrieval stack, callable from LangGraph nodes:
+
+```python
+def hybrid_retrieve(query: str, top_k: int = 20) -> list[dict]:
+    # 1. Embed query (dense)
+    # 2. Generate sparse query vector via bm25s
+    # 3. Qdrant query_points() with prefetch (dense + sparse), limit=20
+    #    using built-in RRF fusion
+    # 4. Return scored chunks
+
+def rerank(query: str, chunks: list[dict], top_n: int = 5) -> list[dict]:
+    # FlashRank cross-encoder reranking
+    # Returns top 5 chunks
+```
+
+---
+
+### Phase 4 — Web Search Fallback
+
+#### [NEW] `web_search.py`
+The "no answer in RAG" escape hatch — queries trusted Indian legal sources:
+
+```python
+TRUSTED_SOURCES = [
+    IndianKanoonSearcher(),   # API or scrape
+    LawCommissionSearcher(),  # scrape official pdfs index
+    BNSScraper(),             # Bharatiya Nyaya Sanhita portal
+]
+
+def search_web_legal(query: str) -> list[WebResult]:
+    # Tries sources in priority order
+    # Returns snippets + URLs + source_name
+    # Clearly marks results as "from web, not verified corpus"
+```
+
+**Key constraint**: This node is **only invoked** by the LangGraph relevance grader when all top-5 RAG chunks score below a relevance threshold. The response includes a `"source_type": "web"` flag that the frontend renders with a different badge.
+
+---
+
+### Phase 5 — LangGraph Agentic Workflow
+
+#### [NEW] `agent_graph.py`
+The heart of the system. Replaces `app_logic.get_research_response()`.
+
+**Graph State (TypedDict)**:
+```python
+class AgentState(TypedDict):
+    question: str
+    documents: list[dict]        # retrieved chunks
+    web_results: list[dict]      # from web search (if RAG fails)
+    generation: LegalResponse    # structured output
+    hallucination_detected: bool
+    retry_count: int
+    source_type: str             # "rag" | "web" | "hybrid"
+```
+
+**Nodes**:
+| Node | Function | Description |
+|------|----------|-------------|
+| `retrieve` | `hybrid_retrieve()` + `rerank()` | Hybrid search, top 20 → rerank → top 5 |
+| `grade_relevance` | LLM grader | Scores each chunk; triggers web search if score < threshold |
+| `web_search` | `search_web_legal()` | Queries Indian Kanoon + Law Commission |
+| `generate` | Llama-3.3 via Groq | Structured output with `LegalResponse` schema |
+| `check_hallucination` | LLM critic | Compares claims in generation vs source chunks |
+
+**Conditional Edges**:
+```
+retrieve → grade_relevance
+grade_relevance → generate         (if relevant chunks found)
+grade_relevance → web_search       (if no relevant chunks, RAG confidence < threshold)
+web_search → generate
+generate → check_hallucination
+check_hallucination → END          (if no hallucination)
+check_hallucination → generate     (retry if retry_count < 2, with stricter prompt)
+check_hallucination → retrieve     (rewrite query if retry_count >= 2)
+retrieve → END (with "Cannot verify" if retry_count >= 3)
+```
+
+---
+
+### Phase 6 — Structured Output Schema
+
+#### [NEW] `schemas.py`
+```python
+class Citation(BaseModel):
+    source: str          # PDF filename or URL
+    page: int            # For Verification Deck
+    snippet: str         # Exact quote
+    source_type: str     # "rag" | "web"
+
+class LegalResponse(BaseModel):
+    summary: str                  # 2-3 sentence executive summary
+    citations: list[Citation]     # Maps to Verification Deck
+    draft_text: str | None        # Only populated for drafting requests
+    confidence: float             # 0.0 - 1.0, from hallucination checker
+    source_type: str              # "rag" | "web" | "hybrid" | "unverified"
+    answer: str                   # Full legal analysis (markdown)
+```
+
+---
+
+### Phase 7 — API & Frontend Updates
+
+#### [MODIFY] [api.py](file:///c:/Users/smitt/legal-aid-india/api.py)
+- `/api/chat` now calls `agent_graph.run_agent(question, history)` instead of `ask_legal_ai()`
+- Response always returns the full `LegalResponse` JSON
+- New endpoint: `/api/web-sources` for the frontend to know if a response came from web
+
+#### [MODIFY] [app_logic.py](file:///c:/Users/smitt/legal-aid-india/app_logic.py)
+- `ask_legal_ai()` becomes a thin wrapper that delegates to `agent_graph.run_agent()`
+- Drafting path (The Drafter) remains unchanged — it doesn't go through the graph
+
+#### Frontend (Next.js) — `jurisone-frontend/src/`
+- Update chat message rendering to handle `source_type: "web"` with a 🌐 badge
+- Citations from web results show URL instead of Verification Deck image
+- `confidence` score displayed as a subtle indicator
+
+---
+
+## File Map (New Files)
+
+| File | Purpose |
+|------|---------|
+| `qdrant_setup.py` | One-time collection creation |
+| `local_ingest.py` | Rewritten: contextual + dual-embedding ingestion |
+| `retrieval.py` | Hybrid search + FlashRank reranking |
+| `web_search.py` | Indian Kanoon + Law Commission fallback |
+| `agent_graph.py` | LangGraph agentic workflow (replaces linear chain) |
+| `schemas.py` | Pydantic `LegalResponse` + `Citation` models |
+| `bm25_model.pkl` | Persisted BM25 model (generated at ingest time) |
+
+---
+
+## Execution Order
+
+```
+1. docker run qdrant              ← one-time infrastructure
+2. pip install new deps           ← one-time
+3. python qdrant_setup.py         ← one-time collection creation
+4. python local_ingest.py         ← re-ingest all PDFs (long-running)
+5. Test retrieval.py standalone   ← verify hybrid search works
+6. Test agent_graph.py standalone ← verify graph logic
+7. Update api.py + app_logic.py   ← wire into FastAPI
+8. Update Next.js frontend        ← handle new JSON schema
+```
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Test hybrid retrieval
+python -c "from retrieval import hybrid_retrieve, rerank; r = hybrid_retrieve('bail application IPC 302'); print(r)"
+
+# Test web search fallback
+python -c "from web_search import search_web_legal; r = search_web_legal('Bharatiya Nyaya Sanhita section 103'); print(r)"
+
+# Test full agent graph
+python -c "from agent_graph import run_agent; print(run_agent('What is the penalty under BNS for murder?', []))"
+```
+
+### Manual Verification
+- Query something **in the corpus** → should return `source_type: "rag"` with Verification Deck citations
+- Query something **not in the corpus** (e.g., very recent judgment from last week) → should trigger web search, return `source_type: "web"` with URL citations
+- Intentionally ambiguous query → hallucination checker should trigger at least one retry loop
+- Drafting request → should still work unchanged (Drafter path bypasses graph)
+
+Indian Kanoon API key - scrape their public endpoint.
+BM25 model persistence — pickle file on disk vs. rebuild on startup? we have decades of legal data , bm25 with mmap? choose the best options available.. 
+we have to minimize hallucination we need to use some kind of hybrid architecture  

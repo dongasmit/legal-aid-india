@@ -1,17 +1,42 @@
+# --- Core Framework ---
 streamlit
+fastapi
+uvicorn[standard]
+python-dotenv
+
+# --- LangChain / LangGraph ---
+langchain>=0.3.0
 langchain-groq
-langchain-pinecone
 langchain-huggingface
+langgraph>=0.2.0
+langchain-text-splitters
+
+# --- Vector DB (Qdrant replaces Pinecone) ---
+qdrant-client>=1.10.0
+
+# --- Embeddings ---
 sentence-transformers
-pinecone
+
+# --- Hybrid Search (BM25 sparse vectors) ---
+bm25s>=0.1.10
+
+# --- Reranking ---
+flashrank>=0.2.9
+
+# --- Document Ingestion ---
 pymupdf
 python-docx
+
+# --- Web Search Fallback ---
+httpx
+beautifulsoup4
+lxml
+
+# --- Output / Auth / Utils ---
 fpdf
-python-dotenv
 Pillow
 psycopg2-binary
 bcrypt
-feedparser
-beautifulsoup4
+pydantic>=2.0.0
 requests
-langchain-text-splitters
+feedparser

@@ -1,35 +1,22 @@
 import os
 import io
 from dotenv import load_dotenv
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_pinecone import PineconeVectorStore
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
-from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 from docx import Document
 from fpdf import FPDF
 import fitz  # PyMuPDF
 from PIL import Image
 
 
-
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 
-if not GROQ_API_KEY or not PINECONE_API_KEY:
-    raise ValueError("❌ API Keys missing! Check your .env file.")
+if not GROQ_API_KEY:
+    raise ValueError("❌ GROQ_API_KEY missing! Check your .env file.")
 
-# 2. CLOUD RESOURCES (The Pinecone Upgrade)
-INDEX_NAME = "jurisone-index"
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-# Connect directly to the Cloud Brain
-vector_db = PineconeVectorStore(index_name=INDEX_NAME, embedding=embeddings)
-retriever = vector_db.as_retriever(search_kwargs={"k": 5})
-
-# The Lawyer Brain
+# The Lawyer Brain (used by Drafter / Interviewer paths)
 llm = ChatGroq(temperature=0.1, model_name="llama-3.3-70b-versatile", api_key=GROQ_API_KEY)
 
 # --- HELPER FUNCTIONS ---
@@ -82,51 +69,9 @@ def get_source_image(file_path, page_number):
 
 # --- INTELLIGENCE FUNCTIONS ---
 
-# 1. THE STRATEGIST (Research with Memory)
-def get_research_response(query, history_text):
-    query_transform_prompt = ChatPromptTemplate.from_template(
-        """
-        Given the conversation history and the new question, create a precise search query.
-        
-        HISTORY: {history}
-        NEW QUESTION: {question}
-        
-        OUTPUT ONLY THE SEARCH QUERY.
-        """
-    )
-    search_query_chain = query_transform_prompt | llm | StrOutputParser()
-    generated_query = search_query_chain.invoke({"history": history_text, "question": query})
-
-    answer_prompt = ChatPromptTemplate.from_template(
-        """
-        You are a Senior Legal Partner. Provide strategic advice.
-        
-        CONTEXT (Laws/Judgments): {context}
-        USER QUERY: {question}
-        
-        **INSTRUCTIONS:**
-        1. Answer based on the CONTEXT provided.
-        2. If the user asks for documents, list them clearly.
-        3. END your response by saying: 
-           "I can draft these for you. Just say: 'Draft the [Document Name]'."
-        
-        **FORMAT:**
-        - **Executive Summary**
-        - **Legal Provisions** (Cite Sections)
-        - **Precedents** (Cite Case Names if in context)
-        - **Strategic Steps**
-        """
-    )
-    
-    rag_chain = (
-        RunnableParallel({
-            "context": lambda x: retriever.invoke(generated_query), 
-            "question": RunnablePassthrough()
-        })
-        .assign(answer= answer_prompt | llm | StrOutputParser())
-    )
-    
-    return rag_chain.invoke(query)
+# 1. THE STRATEGIST — now delegated to agent_graph.py (see ask_legal_ai below)
+#    The old Pinecone-based get_research_response() has been replaced by
+#    the Agentic RAG graph (hybrid Qdrant retrieval + LangGraph workflow).
 
 # 2. THE INTERVIEWER (Context Aware)
 def analyze_drafting_needs(user_input, history_text):
@@ -206,9 +151,25 @@ def ask_legal_ai(user_input, chat_history_list):
             }
             
     else:
-        response = get_research_response(user_input, history_text)
+        from agent_graph import run_agent
+        resp = run_agent(user_input, chat_history_list)
         return {
             "type": "research",
-            "answer": response["answer"],
-            "context": response["context"]
+            "answer": resp.answer,
+            "summary": resp.summary,
+            "confidence": resp.confidence,
+            "source_type": resp.source_type,
+            "citations": [c.model_dump() for c in resp.citations],
+            "context": [
+                {
+                    "metadata": {
+                        "source": c.source,
+                        "page": c.page,
+                        "url": c.url,
+                        "source_type": c.source_type,
+                    },
+                    "page_content": c.snippet,
+                }
+                for c in resp.citations
+            ],
         }

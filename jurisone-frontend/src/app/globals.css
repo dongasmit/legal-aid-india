@@ -1,0 +1,264 @@
+@import "tailwindcss";
+
+/* ── JurisOne Premium Design System ─────────────────────────────────── */
+
+:root {
+  /* Backgrounds */
+  --bg-primary: #0b1120;
+  --bg-secondary: #111827;
+  --bg-surface: #1a2332;
+  --bg-elevated: #1f2b3d;
+  --bg-hover: #243147;
+
+  /* Text */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-accent: #e2e8f0;
+
+  /* Brand — Warm amber/gold for legal authority */
+  --brand-gold: hsl(38, 92%, 50%);
+  --brand-gold-dim: hsl(38, 60%, 38%);
+  --brand-gold-glow: hsl(38, 92%, 50%, 0.15);
+
+  /* Interactive — Indigo/blue */
+  --accent-blue: hsl(224, 76%, 56%);
+  --accent-blue-dim: hsl(224, 50%, 42%);
+  --accent-blue-glow: hsl(224, 76%, 56%, 0.12);
+
+  /* Semantic */
+  --success: hsl(152, 69%, 45%);
+  --success-dim: hsl(152, 40%, 20%);
+  --info: hsl(199, 89%, 52%);
+  --info-dim: hsl(199, 40%, 18%);
+  --warning: hsl(38, 92%, 50%);
+  --danger: hsl(0, 72%, 56%);
+
+  /* Borders */
+  --border-subtle: hsl(220, 20%, 18%);
+  --border-default: hsl(220, 16%, 22%);
+  --border-strong: hsl(220, 14%, 28%);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+}
+
+@theme inline {
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ── Base ────────────────────────────────────────────────────────────── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(220, 16%, 22%) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(220, 16%, 25%);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(220, 16%, 32%);
+}
+
+::selection {
+  background: hsl(38, 92%, 50%, 0.25);
+  color: #fff;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Utility Classes ─────────────────────────────────────────────────── */
+
+.glass {
+  background: hsl(220, 25%, 12%, 0.7);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+}
+
+.glass-border {
+  border: 1px solid hsl(220, 20%, 20%, 0.6);
+}
+
+.glow-gold {
+  box-shadow: 0 0 20px hsl(38, 92%, 50%, 0.08),
+              0 0 40px hsl(38, 92%, 50%, 0.04);
+}
+
+.glow-blue {
+  box-shadow: 0 0 20px hsl(224, 76%, 56%, 0.1),
+              0 0 40px hsl(224, 76%, 56%, 0.05);
+}
+
+/* ── Animations ──────────────────────────────────────────────────────── */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulseRing {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+@keyframes confidenceRing {
+  from { stroke-dashoffset: 100; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.4s ease-out forwards;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface) 0%,
+    var(--bg-elevated) 40%,
+    var(--bg-surface) 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* ── Prose Overrides for Markdown ─────────────────────────────────────── */
+
+.prose-juris h1,
+.prose-juris h2,
+.prose-juris h3 {
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.prose-juris h1 { font-size: 1.25rem; margin-top: 1rem; margin-bottom: 0.5rem; }
+.prose-juris h2 { font-size: 1.1rem; margin-top: 0.9rem; margin-bottom: 0.4rem; }
+.prose-juris h3 { font-size: 1rem; margin-top: 0.75rem; margin-bottom: 0.35rem; }
+
+.prose-juris p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 0.6rem;
+}
+
+.prose-juris strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.prose-juris ul,
+.prose-juris ol {
+  color: var(--text-secondary);
+  padding-left: 1.25rem;
+  margin-bottom: 0.6rem;
+}
+
+.prose-juris li {
+  margin-bottom: 0.25rem;
+  line-height: 1.6;
+}
+
+.prose-juris code {
+  background: var(--bg-elevated);
+  color: var(--brand-gold);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-family: var(--font-mono), monospace;
+}
+
+.prose-juris pre {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.prose-juris pre code {
+  background: transparent;
+  padding: 0;
+  color: var(--text-secondary);
+}
+
+.prose-juris blockquote {
+  border-left: 3px solid var(--brand-gold-dim);
+  padding-left: 1rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0.75rem 0;
+}
+
+.prose-juris table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.875rem;
+}
+
+.prose-juris th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid var(--border-default);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.prose-juris td {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.prose-juris a {
+  color: var(--accent-blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prose-juris a:hover {
+  color: hsl(224, 76%, 66%);
+}
+
+.prose-juris hr {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 1rem 0;
+}
